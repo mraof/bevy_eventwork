@@ -5,8 +5,6 @@ use bevy::{
     tasks::{TaskPool, TaskPoolBuilder},
 };
 use bevy_eventwork::{ConnectionId, EventworkRuntime, Network, NetworkData, NetworkEvent};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use url::Url;
 
 use bevy_eventwork::ws::{NetworkSettings, WebSocketProvider};
 
@@ -242,7 +240,7 @@ fn handle_connect_button(
                 messages.add(SystemMessage::new("Connecting to server..."));
 
                 net.connect(
-                    url::Url::parse("ws://127.0.0.1:22").unwrap(),
+                    url::Url::parse("ws://127.0.0.1:8080").unwrap(),
                     &task_pool.0,
                     &settings,
                 );

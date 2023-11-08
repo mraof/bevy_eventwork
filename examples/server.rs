@@ -1,8 +1,8 @@
 use bevy::tasks::TaskPool;
 use bevy::{prelude::*, tasks::TaskPoolBuilder};
 use bevy_eventwork::{ConnectionId, EventworkRuntime, Network, NetworkData, NetworkEvent};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use url::Url;
-use std::net::{IpAddr, SocketAddr, Ipv4Addr};
 
 use bevy_eventwork::ws::{NetworkSettings, WebSocketProvider};
 
@@ -51,7 +51,7 @@ fn setup_networking(
     let _socket_address = SocketAddr::new(ip_address, 8080);
 
     match net.listen(
-        url::Url::parse("ws://127.0.0.1:22").unwrap(),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
         &task_pool.0,
         &settings,
     ) {

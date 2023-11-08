@@ -1,4 +1,4 @@
-use std::{ops::DerefMut, pin::Pin, sync::Arc};
+use std::{net::SocketAddr, ops::DerefMut, pin::Pin, sync::Arc};
 
 use crate::{error::NetworkError, managers::NetworkProvider, NetworkPacket};
 use async_channel::{Receiver, Sender};
@@ -26,7 +26,7 @@ impl NetworkProvider for WebSocketProvider {
     type WriteHalf = Arc<Mutex<WsStream<TcpStream>>>;
 
     type ConnectInfo = url::Url;
-    type AcceptInfo = url::Url;
+    type AcceptInfo = SocketAddr;
 
     type AcceptStream = OwnedIncoming;
 
@@ -34,7 +34,7 @@ impl NetworkProvider for WebSocketProvider {
         accept_info: Self::AcceptInfo,
         _: Self::NetworkSettings,
     ) -> Result<Self::AcceptStream, NetworkError> {
-        let listener = TcpListener::bind(accept_info.to_string())
+        let listener = TcpListener::bind(accept_info)
             .await
             .map_err(NetworkError::Listen)?;
         Ok(OwnedIncoming::new(listener))
