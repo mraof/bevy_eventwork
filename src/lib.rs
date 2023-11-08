@@ -175,6 +175,10 @@ use std::ops::Deref;
 /// A default tcp provider to help get you started.
 pub mod tcp;
 
+#[cfg(feature = "ws")]
+/// A default ws provider that supports WASM and Desktop to help get you started.
+pub mod ws;
+
 struct AsyncChannel<T> {
     pub(crate) sender: Sender<T>,
     pub(crate) receiver: Receiver<T>,

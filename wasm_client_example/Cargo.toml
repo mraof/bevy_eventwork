@@ -17,8 +17,9 @@ maintenance = { status = "actively-developed" }
 
 [dependencies]
 # This is a bevy plugin
-bevy = "0.11"
+bevy = "0.12.0"
 # Used for TCP provider
-async-net = { version = "2.0.0" }
+async-std = { version = "1.12.0" }
 bevy_eventwork = { path = "../" }
 serde = { version = "1.0.190", features = ["derive"] }
+url = { version = "2.0.0" }

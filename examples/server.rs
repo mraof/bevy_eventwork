@@ -1,10 +1,10 @@
-use async_net::Ipv4Addr;
 use bevy::tasks::TaskPool;
 use bevy::{prelude::*, tasks::TaskPoolBuilder};
 use bevy_eventwork::{ConnectionId, EventworkRuntime, Network, NetworkData, NetworkEvent};
-use std::net::{IpAddr, SocketAddr};
+use url::Url;
+use std::net::{IpAddr, SocketAddr, Ipv4Addr};
 
-use bevy_eventwork::tcp::{NetworkSettings, TcpProvider};
+use bevy_eventwork::ws::{NetworkSettings, WebSocketProvider};
 
 mod shared;
 
@@ -15,7 +15,7 @@ fn main() {
     // Before we can register the potential message types, we
     // need to add the plugin
     app.add_plugins(bevy_eventwork::EventworkPlugin::<
-        TcpProvider,
+        WebSocketProvider,
         bevy::tasks::TaskPool,
     >::default());
 
@@ -40,7 +40,7 @@ fn main() {
 // On the server side, you need to setup networking. You do not need to do so at startup, and can start listening
 // at any time.
 fn setup_networking(
-    mut net: ResMut<Network<TcpProvider>>,
+    mut net: ResMut<Network<WebSocketProvider>>,
     settings: Res<NetworkSettings>,
     task_pool: Res<EventworkRuntime<TaskPool>>,
 ) {
@@ -48,10 +48,10 @@ fn setup_networking(
 
     info!("Address of the server: {}", ip_address);
 
-    let _socket_address = SocketAddr::new(ip_address, 9999);
+    let _socket_address = SocketAddr::new(ip_address, 8080);
 
     match net.listen(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+        url::Url::parse("ws://127.0.0.1:22").unwrap(),
         &task_pool.0,
         &settings,
     ) {
@@ -70,7 +70,7 @@ struct Player(ConnectionId);
 
 fn handle_connection_events(
     mut commands: Commands,
-    net: Res<Network<TcpProvider>>,
+    net: Res<Network<WebSocketProvider>>,
     mut network_events: EventReader<NetworkEvent>,
 ) {
     for event in network_events.read() {
@@ -90,7 +90,7 @@ fn handle_connection_events(
 // Receiving a new message is as simple as listening for events of `NetworkData<T>`
 fn handle_messages(
     mut new_messages: EventReader<NetworkData<shared::UserChatMessage>>,
-    net: Res<Network<TcpProvider>>,
+    net: Res<Network<WebSocketProvider>>,
 ) {
     for message in new_messages.read() {
         let user = message.source();

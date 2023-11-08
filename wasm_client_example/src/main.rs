@@ -1,14 +1,13 @@
 #![allow(clippy::type_complexity)]
 
-use async_net::{Ipv4Addr, SocketAddr};
 use bevy::{
     prelude::*,
     tasks::{TaskPool, TaskPoolBuilder},
 };
 use bevy_eventwork::{ConnectionId, EventworkRuntime, Network, NetworkData, NetworkEvent};
-use std::net::IpAddr;
+use url::Url;
 
-use bevy_eventwork::tcp::{NetworkSettings, TcpProvider};
+use bevy_eventwork::ws::{NetworkSettings, WebSocketProvider};
 
 mod shared;
 
@@ -20,7 +19,7 @@ fn main() {
     // You need to add the `ClientPlugin` first before you can register
     // `ClientMessage`s
     app.add_plugins(bevy_eventwork::EventworkPlugin::<
-        TcpProvider,
+        WebSocketProvider,
         bevy::tasks::TaskPool,
     >::default());
 
@@ -68,7 +67,7 @@ fn handle_incoming_messages(
 ) {
     let mut messages = messages.get_single_mut().unwrap();
 
-    for new_message in new_messages.iter() {
+    for new_message in new_messages.read() {
         messages.add(UserMessage::new(&new_message.name, &new_message.message));
     }
 }
@@ -83,7 +82,7 @@ fn handle_network_events(
     let mut text = text_query.get_mut(connect_children[0]).unwrap();
     let mut messages = messages.get_single_mut().unwrap();
 
-    for event in new_network_events.iter() {
+    for event in new_network_events.read() {
         info!("Received event");
         match event {
             NetworkEvent::Connected(_) => {
@@ -215,7 +214,7 @@ type GameChatMessages = ChatMessages<ChatMessage>;
 struct ConnectButton;
 
 fn handle_connect_button(
-    net: ResMut<Network<TcpProvider>>,
+    net: ResMut<Network<WebSocketProvider>>,
     settings: Res<NetworkSettings>,
     interaction_query: Query<
         (&Interaction, &Children),
@@ -242,7 +241,8 @@ fn handle_connect_button(
                 messages.add(SystemMessage::new("Connecting to server..."));
 
                 net.connect(
-                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+                    url::Url::parse("ws://127.0.0.1:22").unwrap(),
+                    //url::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
                     &task_pool.0,
                     &settings,
                 );
@@ -255,7 +255,7 @@ fn handle_connect_button(
 struct MessageButton;
 
 fn handle_message_button(
-    net: Res<Network<TcpProvider>>,
+    net: Res<Network<WebSocketProvider>>,
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<MessageButton>)>,
     mut messages: Query<&mut GameChatMessages>,
 ) {
