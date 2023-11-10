@@ -149,10 +149,10 @@ mod network_message;
 
 /// Contains all functionality for starting a server or client, sending, and recieving messages from clients.
 pub mod managers;
+use managers::NetworkProvider;
 pub use managers::{network::AppNetworkMessage, Network};
 
 mod runtime;
-use managers::NetworkProvider;
 pub use runtime::EventworkRuntime;
 use runtime::JoinHandle;
 pub use runtime::Runtime;
@@ -266,8 +266,8 @@ impl<T> NetworkData<T> {
 
 struct Connection {
     receive_task: Box<dyn JoinHandle>,
-    map_receive_task: Box<dyn JoinHandle>,
     send_task: Box<dyn JoinHandle>,
+    map_receive_task: Box<dyn JoinHandle>,
     send_message: Sender<NetworkPacket>,
 }
 
@@ -278,12 +278,13 @@ impl Connection {
         self.map_receive_task.abort();
     }
 }
+
 #[derive(Default, Copy, Clone, Debug)]
 /// The plugin to add to your bevy [`App`](bevy::prelude::App) when you want
 /// to instantiate a server
-pub struct EventworkPlugin<NP: NetworkProvider, RT: Runtime = bevy::tasks::TaskPool>(
-    PhantomData<(NP, RT)>,
-);
+pub struct EventworkPlugin<NP: NetworkProvider, RT: Runtime = bevy::tasks::TaskPool> {
+    phantom: PhantomData<(NP, RT)>,
+}
 
 impl<NP: NetworkProvider + Default, RT: Runtime> Plugin for EventworkPlugin<NP, RT> {
     fn build(&self, app: &mut App) {

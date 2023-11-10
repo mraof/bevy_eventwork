@@ -247,7 +247,12 @@ pub(crate) fn handle_new_incoming_connections<NP: NetworkProvider, RT: Runtime>(
                                 error!("Could not send disconnected event, because channel is disconnected");
                             }
                         }
+                    }, &runtime.0)), 
+                    send_task: Box::new(run_async(async move {
+                        trace!("Starting send task for {}", id);
+                        NP::send_loop(write_half, outgoing_rx, write_network_settings).await;
                     }, &runtime.0)),
+                    
                     map_receive_task: Box::new(run_async(async move{
                         while let Ok(packet) = incoming_rx.recv().await{
                             match recv_message_map.get_mut(&packet.kind[..]) {
@@ -258,10 +263,7 @@ pub(crate) fn handle_new_incoming_connections<NP: NetworkProvider, RT: Runtime>(
                             }
                         }
                     }, &runtime.0)),
-                    send_task: Box::new(run_async(async move {
-                        trace!("Starting send task for {}", id);
-                        NP::send_loop(write_half, outgoing_rx, write_network_settings).await;
-                    }, &runtime.0)),
+
                     send_message: outgoing_tx,
                     //addr: new_conn.addr,
                 },
@@ -277,6 +279,72 @@ pub(crate) fn handle_new_incoming_connections<NP: NetworkProvider, RT: Runtime>(
         network_events.send(NetworkEvent::Disconnected(disconnected_connection));
     }
 }
+/*
+pub(crate) fn handle_new_incoming_connections_split<NP: NetworkProviderSplittable, RT: Runtime>(
+    mut server: ResMut<Network<NP>>,
+    runtime: Res<EventworkRuntime<RT>>,
+    network_settings: Res<NP::NetworkSettings>,
+    mut network_events: EventWriter<NetworkEvent>,
+) {
+    while let Ok(new_conn) = server.new_connections.receiver.try_recv() {
+        let id = server.connection_count;
+        let conn_id = ConnectionId { id };
+        server.connection_count += 1;
+
+        let (read_half, write_half) = NP::split(new_conn);
+        let recv_message_map = server.recv_message_map.clone();
+        let read_network_settings = network_settings.clone();
+        let write_network_settings = network_settings.clone();
+        let disconnected_connections = server.disconnected_connections.sender.clone();
+
+        let (outgoing_tx, outgoing_rx) = unbounded();
+        let (incoming_tx, incoming_rx) = unbounded();
+
+        server.established_connections.insert(
+                conn_id,
+                Connection {
+                    connection_task_type: crate::ConnectionTaskType::Split { receive_task: Box::new(run_async(async move {
+                        trace!("Starting listen task for {}", id);
+                        NP::recv_loop(read_half, incoming_tx, read_network_settings).await;
+
+                        match disconnected_connections.send(conn_id).await {
+                            Ok(_) => (),
+                            Err(_) => {
+                                error!("Could not send disconnected event, because channel is disconnected");
+                            }
+                        }
+                    }, &runtime.0)), send_task: Box::new(run_async(async move {
+                        trace!("Starting send task for {}", id);
+                        NP::send_loop(write_half, outgoing_rx, write_network_settings).await;
+                    }, &runtime.0)) },
+                    
+                    map_receive_task: Box::new(run_async(async move{
+                        while let Ok(packet) = incoming_rx.recv().await{
+                            match recv_message_map.get_mut(&packet.kind[..]) {
+                                Some(mut packets) => packets.push((conn_id, packet.data)),
+                                None => {
+                                    error!("Could not find existing entries for message kinds: {:?}", packet);
+                                }
+                            }
+                        }
+                    }, &runtime.0)),
+                    
+                    send_message: outgoing_tx,
+                    //addr: new_conn.addr,
+                },
+            );
+
+        network_events.send(NetworkEvent::Connected(conn_id));
+    }
+
+    while let Ok(disconnected_connection) = server.disconnected_connections.receiver.try_recv() {
+        server
+            .established_connections
+            .remove(&disconnected_connection);
+        network_events.send(NetworkEvent::Disconnected(disconnected_connection));
+    }
+}
+*/
 
 /// A utility trait on [`App`] to easily register [`ServerMessage`]s
 pub trait AppNetworkMessage {

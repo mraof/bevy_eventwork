@@ -15,8 +15,7 @@ pub mod network;
 /// Contains logic for making requests with expected responses to a server
 pub mod network_request;
 
-/// An instance of a [`NetworkServer`] is used to listen for new client connections
-/// using [`NetworkServer::listen`]
+/// An instance of a [`Network`] is used to manage the state of the network
 #[derive(Resource)]
 pub struct Network<NP: NetworkProvider> {
     recv_message_map: Arc<DashMap<&'static str, Vec<(ConnectionId, Vec<u8>)>>>,
@@ -42,12 +41,6 @@ pub trait NetworkProvider: 'static + Send + Sync {
     /// This type needs to be able to be split.
     type Socket: Send;
 
-    /// The read half of the given socket type.
-    type ReadHalf: Send;
-
-    /// The write half of the given socket type.
-    type WriteHalf: Send;
-
     /// Info necessary to start a connection, an [`std::net::SocketAddr`] for instance
     type ConnectInfo: Send;
 
@@ -56,6 +49,12 @@ pub trait NetworkProvider: 'static + Send + Sync {
 
     /// The output type of [`accept_loop`]
     type AcceptStream: Stream<Item = Self::Socket> + Unpin + Send;
+
+    /// The read half of the given socket type.
+    type ReadHalf: Send;
+
+    /// The write half of the given socket type.
+    type WriteHalf: Send;
 
     /// This will be spawned as a background operation to continuously add new connections.
     async fn accept_loop(
@@ -87,3 +86,34 @@ pub trait NetworkProvider: 'static + Send + Sync {
     /// can be handled concurrently.
     fn split(combined: Self::Socket) -> (Self::ReadHalf, Self::WriteHalf);
 }
+
+/*
+/// An extension trait for [`NetworkProvider`] that provides functions for splitting and working with the split network Sockets
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+pub trait NetworkProviderSplittable: NetworkProvider {
+    /// The read half of the given socket type.
+    type ReadHalf: Send;
+
+    /// The write half of the given socket type.
+    type WriteHalf: Send;
+
+    /// Recieves messages from the client, forwards them to Eventwork via a sender.
+    async fn recv_loop(
+        read_half: Self::ReadHalf,
+        messages: Sender<NetworkPacket>,
+        settings: Self::NetworkSettings,
+    );
+
+    /// Sends messages to the client, receives packages from Eventwork via receiver.
+    async fn send_loop(
+        write_half: Self::WriteHalf,
+        messages: Receiver<NetworkPacket>,
+        settings: Self::NetworkSettings,
+    );
+
+    /// Split the socket into a read and write half, so that the two actions
+    /// can be handled concurrently.
+    fn split(combined: Self::Socket) -> (Self::ReadHalf, Self::WriteHalf);
+}
+*/

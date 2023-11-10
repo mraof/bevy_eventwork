@@ -1,8 +1,10 @@
 <html><head>
     <link rel="stylesheet" href="/index-597d90855083f957.css">
-  </head>
+  
+<link rel="preload" href="/wasm_client_example-cf004c07988dcaac_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/wasm_client_example-cf004c07988dcaac.js"></head>
 <body>
-<script>(function () {
+<script type="module">import init from '/wasm_client_example-cf004c07988dcaac.js';init('/wasm_client_example-cf004c07988dcaac_bg.wasm');</script><script>(function () {
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var url = protocol + '//' + window.location.host + '/_trunk/ws';
     var poll_interval = 5000;

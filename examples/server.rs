@@ -51,7 +51,7 @@ fn setup_networking(
     let _socket_address = SocketAddr::new(ip_address, 8080);
 
     match net.listen(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
         &task_pool.0,
         &settings,
     ) {

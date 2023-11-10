@@ -65,6 +65,16 @@ impl NetworkProvider for TcpProvider {
         debug!("Connected to: {:?}", addr);
         return Ok(stream);
     }
+}
+
+impl NetworkProviderSplitExt for TcpProvider {
+    type NetworkSettings = NetworkSettings;
+
+    type Socket = TcpStream;
+
+    type ReadHalf = TcpStream;
+
+    type WriteHalf = TcpStream;
 
     async fn recv_loop(
         mut read_half: Self::ReadHalf,

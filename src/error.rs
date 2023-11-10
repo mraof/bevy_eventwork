@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+#[cfg(not(target_arch = "wasm32"))]
 use async_tungstenite::tungstenite::{error::ProtocolError, http::Response};
 
 use crate::ConnectionId;
@@ -29,12 +30,14 @@ pub enum NetworkError {
     Serialization,
 
     ///An error in HTTP
+    #[cfg(not(target_arch = "wasm32"))]
     Http(Response<Option<Vec<u8>>>),
 
     /// An error occured in the Io of the connection
     Io(std::io::Error),
 
     /// An error in the connections protocol
+    #[cfg(not(target_arch = "wasm32"))]
     Protocol(ProtocolError),
 }
 
@@ -63,16 +66,19 @@ impl Display for NetworkError {
                 f.write_fmt(format_args!("Attempted to send data over closed channel"))
             }
             Self::Serialization => f.write_fmt(format_args!("Failed to serialize")),
+            #[cfg(not(target_arch = "wasm32"))]
             Self::Http(err) => {
                 let body = serde_json::to_string(&err.body().clone().unwrap()).unwrap();
                 f.write_fmt(format_args!("{:?}: Body: {:?}", err, body))
             }
             Self::Io(err) => f.write_fmt(format_args!("{}", err)),
+            #[cfg(not(target_arch = "wasm32"))]
             Self::Protocol(err) => f.write_fmt(format_args!("Protocol Error: {}", err)),
         }
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<async_tungstenite::tungstenite::Error> for NetworkError {
     fn from(value: async_tungstenite::tungstenite::Error) -> Self {
         match value {
@@ -89,5 +95,12 @@ impl From<async_tungstenite::tungstenite::Error> for NetworkError {
             async_tungstenite::tungstenite::Error::Http(response) => Self::Http(response),
             async_tungstenite::tungstenite::Error::HttpFormat(_) => todo!(),
         }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<ws_stream_wasm::WsErr> for NetworkError {
+    fn from(value: ws_stream_wasm::WsErr) -> Self {
+        todo!()
     }
 }
