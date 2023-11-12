@@ -240,7 +240,7 @@ fn handle_connect_button(
                 messages.add(SystemMessage::new("Connecting to server..."));
 
                 net.connect(
-                    url::Url::parse("ws://127.0.0.1:8080").unwrap(),
+                    url::Url::parse("ws://127.0.0.1:8081").unwrap(),
                     &task_pool.0,
                     &settings,
                 );
