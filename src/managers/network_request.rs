@@ -114,7 +114,7 @@ impl<T: RequestMessage> NetworkMessage for RequestInternal<T> {
 
 /// A wrapper around a request that automatically handles writing
 /// the response to eventwork for network transmission.
-#[derive(Debug, Event)]
+#[derive(Debug, Event, Clone)]
 pub struct Request<T: RequestMessage, NS: NetworkSerializer> {
     request: T,
     source: ConnectionId,
