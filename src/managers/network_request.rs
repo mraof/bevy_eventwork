@@ -94,12 +94,17 @@ pub trait RequestMessage:
     Clone + Serialize + DeserializeOwned + Send + Sync + Debug + 'static
 {
     /// The response type for the request.
-    type ResponseMessage: Clone + Serialize + DeserializeOwned + Send + Sync + Debug + 'static;
+    type ResponseMessage: NetworkMessage
+        + Clone
+        + Serialize
+        + DeserializeOwned
+        + Send
+        + Sync
+        + Debug
+        + 'static;
 
     /// The label used for the request type, same rules as [`ServerMessage`] in terms of naming.
     const REQUEST_NAME: &'static str;
-    /// The label used for the request type, same rules as [`ClientMessage`] in terms of naming.
-    const RESPONSE_NAME: &'static str;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -139,7 +144,7 @@ impl<T: RequestMessage, NS: NetworkSerializer> Request<T, NS> {
     /// Consume the request and automatically send the response back to the client.
     pub fn respond(self, response: T::ResponseMessage) -> Result<(), NetworkError> {
         let packet = NetworkPacket {
-            kind: String::from(T::RESPONSE_NAME),
+            kind: String::from(T::ResponseMessage::NAME),
             data: NS::serialize(&ResponseInternal {
                 response_id: self.request_id,
                 response,
@@ -227,7 +232,7 @@ struct ResponseInternal<T> {
 }
 
 impl<T: RequestMessage> NetworkMessage for ResponseInternal<T> {
-    const NAME: &'static str = T::RESPONSE_NAME;
+    const NAME: &'static str = T::ResponseMessage::NAME;
 }
 
 /// A utility trait on [`App`] to easily register [`RequestMessage::ResponseMessage`]s for clients to recieve
