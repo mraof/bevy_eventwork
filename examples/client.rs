@@ -387,7 +387,7 @@ fn setup_ui(mut commands: Commands, _materials: ResMut<Assets<ColorMaterial>>) {
                                         ..default()
                                     },
                                 )
-                                .with_alignment(TextAlignment::Center),
+                                .with_justify(JustifyText::Center),
                                 ..Default::default()
                             });
                         });
@@ -414,7 +414,7 @@ fn setup_ui(mut commands: Commands, _materials: ResMut<Assets<ColorMaterial>>) {
                                         ..default()
                                     },
                                 )
-                                .with_alignment(TextAlignment::Center),
+                                .with_justify(JustifyText::Center),
                                 ..Default::default()
                             });
                         });
