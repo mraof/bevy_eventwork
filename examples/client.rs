@@ -5,7 +5,9 @@ use bevy::{
     prelude::*,
     tasks::{TaskPool, TaskPoolBuilder},
 };
-use bevy_eventwork::{ConnectionId, EventworkRuntime, Network, NetworkData, NetworkEvent};
+use bevy_eventwork::{
+    BincodeSerializer, ConnectionId, EventworkRuntime, Network, NetworkData, NetworkEvent,
+};
 use std::net::IpAddr;
 
 use bevy_eventwork::tcp::{NetworkSettings, TcpProvider};
@@ -20,6 +22,7 @@ fn main() {
     // You need to add the `ClientPlugin` first before you can register
     // `ClientMessage`s
     app.add_plugins(bevy_eventwork::EventworkPlugin::<
+        BincodeSerializer,
         TcpProvider,
         bevy::tasks::TaskPool,
     >::default());
@@ -213,7 +216,7 @@ type GameChatMessages = ChatMessages<ChatMessage>;
 struct ConnectButton;
 
 fn handle_connect_button(
-    net: ResMut<Network<TcpProvider>>,
+    net: ResMut<Network<TcpProvider, BincodeSerializer>>,
     settings: Res<NetworkSettings>,
     interaction_query: Query<
         (&Interaction, &Children),
@@ -253,7 +256,7 @@ fn handle_connect_button(
 struct MessageButton;
 
 fn handle_message_button(
-    net: Res<Network<TcpProvider>>,
+    net: Res<Network<TcpProvider, BincodeSerializer>>,
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<MessageButton>)>,
     mut messages: Query<&mut GameChatMessages>,
 ) {

@@ -8,20 +8,25 @@ use bevy::{
 use dashmap::DashMap;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::{error::NetworkError, ConnectionId, NetworkData, NetworkMessage, NetworkPacket};
+use crate::{
+    error::NetworkError, serialize::NetworkSerializer, ConnectionId, NetworkData,
+    NetworkMessage, NetworkPacket,
+};
 
 use super::{network::register_message, Network, NetworkProvider};
 
 #[derive(SystemParam, Debug)]
 /// A wrapper around [`Network`] that allows for the sending of [`RequestMessage`]'s.
-pub struct Requester<'w, 's, T: RequestMessage, NP: NetworkProvider> {
-    server: Res<'w, Network<NP>>,
+pub struct Requester<'w, 's, T: RequestMessage, NP: NetworkProvider<NS>, NS: NetworkSerializer> {
+    server: Res<'w, Network<NP, NS>>,
     response_map: Res<'w, ResponseMap<T>>,
     #[system_param(ignore)]
     marker: PhantomData<&'s usize>,
 }
 
-impl<'w, 's, T: RequestMessage, NP: NetworkProvider> Requester<'w, 's, T, NP> {
+impl<'w, 's, T: RequestMessage, NP: NetworkProvider<NS>, NS: NetworkSerializer>
+    Requester<'w, 's, T, NP, NS>
+{
     /// Sends a request and returns an object that will eventually return the response
     pub fn send_request(
         &self,
@@ -110,13 +115,14 @@ impl<T: RequestMessage> NetworkMessage for RequestInternal<T> {
 /// A wrapper around a request that automatically handles writing
 /// the response to eventwork for network transmission.
 #[derive(Debug, Event)]
-pub struct Request<T: RequestMessage> {
+pub struct Request<T: RequestMessage, NS: NetworkSerializer> {
     request: T,
     request_id: u64,
     response_tx: Sender<NetworkPacket>,
+    phantom_data: PhantomData<NS>,
 }
 
-impl<T: RequestMessage> Request<T> {
+impl<T: RequestMessage, NS: NetworkSerializer> Request<T, NS> {
     /// Read the underlying request
     #[inline(always)]
     pub fn get_request(&self) -> &T {
@@ -127,7 +133,7 @@ impl<T: RequestMessage> Request<T> {
     pub fn respond(self, response: T::ResponseMessage) -> Result<(), NetworkError> {
         let packet = NetworkPacket {
             kind: String::from(T::RESPONSE_NAME),
-            data: bincode::serialize(&ResponseInternal {
+            data: NS::serialize(&ResponseInternal {
                 response_id: self.request_id,
                 response,
             })
@@ -143,12 +149,24 @@ impl<T: RequestMessage> Request<T> {
 /// A utility trait on [`App`] to easily register [`RequestMessage`]s for servers to recieve
 pub trait AppNetworkRequestMessage {
     /// Register a server request message type to listen for on the server
-    fn listen_for_request_message<T: RequestMessage, NP: NetworkProvider>(&mut self) -> &mut Self;
+    fn listen_for_request_message<
+        T: RequestMessage,
+        NP: NetworkProvider<NS>,
+        NS: NetworkSerializer,
+    >(
+        &mut self,
+    ) -> &mut Self;
 }
 
 impl AppNetworkRequestMessage for App {
-    fn listen_for_request_message<T: RequestMessage, NP: NetworkProvider>(&mut self) -> &mut Self {
-        let server = self.world.get_resource::<Network<NP>>().expect("Could not find `Network`. Be sure to include the `ServerPlugin` before listening for server messages.");
+    fn listen_for_request_message<
+        T: RequestMessage,
+        NP: NetworkProvider<NS>,
+        NS: NetworkSerializer,
+    >(
+        &mut self,
+    ) -> &mut Self {
+        let server = self.world.get_resource::<Network<NP, NS>>().expect("Could not find `Network`. Be sure to include the `ServerPlugin` before listening for server messages.");
 
         debug!(
             "Registered a new ServerMessage: {}",
@@ -166,21 +184,21 @@ impl AppNetworkRequestMessage for App {
             .recv_message_map
             .insert(RequestInternal::<T>::NAME, Vec::new());
         self.add_event::<NetworkData<RequestInternal<T>>>();
-        self.add_event::<Request<T>>();
+        self.add_event::<Request<T, NS>>();
         self.add_systems(
             PreUpdate,
             (
-                create_request_handlers::<T, NP>,
-                register_message::<RequestInternal<T>, NP>,
+                create_request_handlers::<T, NP, NS>,
+                register_message::<RequestInternal<T>, NP, NS>,
             ),
         )
     }
 }
 
-fn create_request_handlers<T: RequestMessage, NP: NetworkProvider>(
+fn create_request_handlers<T: RequestMessage, NP: NetworkProvider<NS>, NS: NetworkSerializer>(
     mut requests: EventReader<NetworkData<RequestInternal<T>>>,
-    mut requests_wrapped: EventWriter<Request<T>>,
-    network: Res<Network<NP>>,
+    mut requests_wrapped: EventWriter<Request<T, NS>>,
+    network: Res<Network<NP, NS>>,
 ) {
     for request in requests.read() {
         if let Some(connection) = &network.established_connections.get(request.source()) {
@@ -188,6 +206,7 @@ fn create_request_handlers<T: RequestMessage, NP: NetworkProvider>(
                 request: request.request.clone(),
                 request_id: request.id,
                 response_tx: connection.send_message.clone(),
+                phantom_data: PhantomData,
             });
         }
     }
@@ -206,13 +225,25 @@ impl<T: RequestMessage> NetworkMessage for ResponseInternal<T> {
 /// A utility trait on [`App`] to easily register [`RequestMessage::ResponseMessage`]s for clients to recieve
 pub trait AppNetworkResponseMessage {
     /// Register a server request message type to listen for on the server
-    fn listen_for_response_message<T: RequestMessage, NP: NetworkProvider>(&mut self) -> &mut Self;
+    fn listen_for_response_message<
+        T: RequestMessage,
+        NP: NetworkProvider<NS>,
+        NS: NetworkSerializer,
+    >(
+        &mut self,
+    ) -> &mut Self;
 }
 
 impl AppNetworkResponseMessage for App {
-    fn listen_for_response_message<T: RequestMessage, NP: NetworkProvider>(&mut self) -> &mut Self {
+    fn listen_for_response_message<
+        T: RequestMessage,
+        NP: NetworkProvider<NS>,
+        NS: NetworkSerializer,
+    >(
+        &mut self,
+    ) -> &mut Self {
         self.insert_resource(ResponseMap::<T>::default());
-        let client = self.world.get_resource::<Network<NP>>().expect("Could not find `Network`. Be sure to include the `ServerPlugin` before listening for server messages.");
+        let client = self.world.get_resource::<Network<NP, NS>>().expect("Could not find `Network`. Be sure to include the `ServerPlugin` before listening for server messages.");
 
         debug!(
             "Registered a new ServerMessage: {}",
@@ -233,7 +264,7 @@ impl AppNetworkResponseMessage for App {
         self.add_systems(
             PreUpdate,
             (
-                register_message::<ResponseInternal<T>, NP>,
+                register_message::<ResponseInternal<T>, NP, NS>,
                 create_client_response_handlers::<T>,
             ),
         )

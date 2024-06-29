@@ -22,7 +22,7 @@ can start receiving packets as events of [`NetworkData<T>`].
 ## Example Client
 ```rust,no_run
 use bevy::prelude::*;
-use bevy_eventwork::{EventworkRuntime, EventworkPlugin, NetworkData, NetworkMessage, NetworkEvent, AppNetworkMessage, tcp::TcpProvider,tcp::NetworkSettings};
+use bevy_eventwork::{EventworkRuntime, EventworkPlugin, NetworkData, NetworkMessage, NetworkEvent, AppNetworkMessage, tcp::TcpProvider,tcp::NetworkSettings, BincodeSerializer};
 use serde::{Serialize, Deserialize};
 use bevy::tasks::TaskPoolBuilder;
 
@@ -36,6 +36,7 @@ impl NetworkMessage for WorldUpdate {
 fn main() {
      let mut app = App::new();
      app.add_plugins(EventworkPlugin::<
+     BincodeSerializer,
         TcpProvider,
         bevy::tasks::TaskPool,
     >::default());
@@ -47,7 +48,7 @@ fn main() {
     app.insert_resource(NetworkSettings::default());
 
     // We are receiving this from the server, so we need to listen for it
-     app.listen_for_message::<WorldUpdate, TcpProvider>();
+     app.listen_for_message::<WorldUpdate, TcpProvider, BincodeSerializer>();
      app.add_systems(Update, (handle_world_updates,handle_connection_events));
 }
 
@@ -75,7 +76,7 @@ fn handle_connection_events(mut network_events: EventReader<NetworkEvent>,) {
 use bevy::prelude::*;
 use bevy_eventwork::{EventworkRuntime,
     EventworkPlugin, NetworkData, NetworkMessage, Network, NetworkEvent, AppNetworkMessage,
-    tcp::TcpProvider,tcp::NetworkSettings
+    tcp::TcpProvider,tcp::NetworkSettings, BincodeSerializer,
 };
 use bevy::tasks::TaskPoolBuilder;
 use serde::{Serialize, Deserialize};
@@ -90,6 +91,7 @@ impl NetworkMessage for UserInput {
 fn main() {
      let mut app = App::new();
      app.add_plugins(EventworkPlugin::<
+     BincodeSerializer,
         TcpProvider,
         bevy::tasks::TaskPool,
     >::default());
@@ -102,7 +104,7 @@ fn main() {
     app.insert_resource(NetworkSettings::default());
 
      // We are receiving this from a client, so we need to listen for it!
-     app.listen_for_message::<UserInput, TcpProvider>();
+     app.listen_for_message::<UserInput, TcpProvider, BincodeSerializer>();
      app.add_systems(Update, (handle_world_updates,handle_connection_events));
 }
 
@@ -122,7 +124,7 @@ impl NetworkMessage for PlayerUpdate {
 }
 
 fn handle_connection_events(
-    net: Res<Network<TcpProvider>>,
+    net: Res<Network<TcpProvider, BincodeSerializer>>,
     mut network_events: EventReader<NetworkEvent>,
 ) {
     for event in network_events.read() {
@@ -155,6 +157,9 @@ use managers::NetworkProvider;
 pub use runtime::EventworkRuntime;
 use runtime::JoinHandle;
 pub use runtime::Runtime;
+
+mod serialize;
+pub use serialize::{BincodeSerializer, NetworkSerializer};
 
 use std::{
     fmt::{Debug, Display},
@@ -276,17 +281,21 @@ impl Connection {
 #[derive(Default, Copy, Clone, Debug)]
 /// The plugin to add to your bevy [`App`](bevy::prelude::App) when you want
 /// to instantiate a server
-pub struct EventworkPlugin<NP: NetworkProvider, RT: Runtime = bevy::tasks::TaskPool>(
-    PhantomData<(NP, RT)>,
-);
+pub struct EventworkPlugin<
+    NS: NetworkSerializer,
+    NP: NetworkProvider<NS>,
+    RT: Runtime = bevy::tasks::TaskPool,
+>(PhantomData<(NP, RT, NS)>);
 
-impl<NP: NetworkProvider + Default, RT: Runtime> Plugin for EventworkPlugin<NP, RT> {
+impl<NS: NetworkSerializer, NP: NetworkProvider<NS> + Default, RT: Runtime> Plugin
+    for EventworkPlugin<NS, NP, RT>
+{
     fn build(&self, app: &mut App) {
         app.insert_resource(managers::Network::new(NP::default()));
         app.add_event::<NetworkEvent>();
         app.add_systems(
             PreUpdate,
-            managers::network::handle_new_incoming_connections::<NP, RT>,
+            managers::network::handle_new_incoming_connections::<NS, NP, RT>,
         );
     }
 }

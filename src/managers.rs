@@ -7,7 +7,8 @@ use dashmap::DashMap;
 use futures_lite::Stream;
 
 use crate::{
-    error::NetworkError, runtime::JoinHandle, AsyncChannel, Connection, ConnectionId, NetworkPacket,
+    error::NetworkError, runtime::JoinHandle, serialize::NetworkSerializer, AsyncChannel,
+    Connection, ConnectionId, NetworkPacket,
 };
 
 /// Contains logic for using [`Network`]
@@ -18,7 +19,7 @@ pub mod network_request;
 /// An instance of a [`NetworkServer`] is used to listen for new client connections
 /// using [`NetworkServer::listen`]
 #[derive(Resource)]
-pub struct Network<NP: NetworkProvider> {
+pub struct Network<NP: NetworkProvider<NS>, NS: NetworkSerializer> {
     recv_message_map: Arc<DashMap<&'static str, Vec<(ConnectionId, Vec<u8>)>>>,
     established_connections: Arc<DashMap<ConnectionId, Connection>>,
     new_connections: AsyncChannel<NP::Socket>,
@@ -34,7 +35,7 @@ pub struct Network<NP: NetworkProvider> {
 /// for generating the futures that carryout the underlying server logic.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-pub trait NetworkProvider: 'static + Send + Sync {
+pub trait NetworkProvider<Serialization: NetworkSerializer>: 'static + Send + Sync {
     /// This is to configure particular protocols
     type NetworkSettings: Resource + Clone;
 

@@ -12,12 +12,13 @@ use crate::{
     error::NetworkError,
     network_message::NetworkMessage,
     runtime::{run_async, EventworkRuntime},
+    serialize::NetworkSerializer,
     AsyncChannel, Connection, ConnectionId, NetworkData, NetworkEvent, NetworkPacket, Runtime,
 };
 
 use super::{Network, NetworkProvider};
 
-impl<NP: NetworkProvider> std::fmt::Debug for Network<NP> {
+impl<NS: NetworkSerializer, NP: NetworkProvider<NS>> std::fmt::Debug for Network<NP, NS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -27,7 +28,7 @@ impl<NP: NetworkProvider> std::fmt::Debug for Network<NP> {
     }
 }
 
-impl<NP: NetworkProvider> Network<NP> {
+impl<NS: NetworkSerializer, NP: NetworkProvider<NS>> Network<NP, NS> {
     pub(crate) fn new(_provider: NP) -> Self {
         Self {
             recv_message_map: Arc::new(DashMap::new()),
@@ -145,7 +146,7 @@ impl<NP: NetworkProvider> Network<NP> {
 
         let packet = NetworkPacket {
             kind: String::from(T::NAME),
-            data: bincode::serialize(&message).map_err(|_| NetworkError::Serialization)?,
+            data: NS::serialize(&message).map_err(|_| NetworkError::Serialization)?,
         };
 
         match connection.send_message.try_send(packet) {
@@ -161,7 +162,7 @@ impl<NP: NetworkProvider> Network<NP> {
 
     /// Broadcast a message to all connected clients
     pub fn broadcast<T: NetworkMessage + Clone>(&self, message: T) {
-        let serialized_message = bincode::serialize(&message).expect("Couldn't serialize message!");
+        let serialized_message = NS::serialize(&message).expect("Couldn't serialize message!");
         for connection in self.established_connections.iter() {
             let packet = NetworkPacket {
                 kind: String::from(T::NAME),
@@ -211,8 +212,12 @@ impl<NP: NetworkProvider> Network<NP> {
     }
 }
 
-pub(crate) fn handle_new_incoming_connections<NP: NetworkProvider, RT: Runtime>(
-    mut server: ResMut<Network<NP>>,
+pub(crate) fn handle_new_incoming_connections<
+    NS: NetworkSerializer,
+    NP: NetworkProvider<NS>,
+    RT: Runtime,
+>(
+    mut server: ResMut<Network<NP, NS>>,
     runtime: Res<EventworkRuntime<RT>>,
     network_settings: Res<NP::NetworkSettings>,
     mut network_events: EventWriter<NetworkEvent>,
@@ -284,12 +289,16 @@ pub trait AppNetworkMessage {
     /// - Add a new event type of [`NetworkData<T>`]
     /// - Register the type for transformation over the wire
     /// - Internal bookkeeping
-    fn listen_for_message<T: NetworkMessage, NP: NetworkProvider>(&mut self) -> &mut Self;
+    fn listen_for_message<T: NetworkMessage, NP: NetworkProvider<NS>, NS: NetworkSerializer>(
+        &mut self,
+    ) -> &mut Self;
 }
 
 impl AppNetworkMessage for App {
-    fn listen_for_message<T: NetworkMessage, NP: NetworkProvider>(&mut self) -> &mut Self {
-        let server = self.world.get_resource::<Network<NP>>().expect("Could not find `Network`. Be sure to include the `ServerPlugin` before listening for server messages.");
+    fn listen_for_message<T: NetworkMessage, NP: NetworkProvider<NS>, NS: NetworkSerializer>(
+        &mut self,
+    ) -> &mut Self {
+        let server = self.world.get_resource::<Network<NP, NS>>().expect("Could not find `Network`. Be sure to include the `ServerPlugin` before listening for server messages.");
 
         debug!("Registered a new ServerMessage: {}", T::NAME);
 
@@ -300,12 +309,12 @@ impl AppNetworkMessage for App {
         );
         server.recv_message_map.insert(T::NAME, Vec::new());
         self.add_event::<NetworkData<T>>();
-        self.add_systems(PreUpdate, register_message::<T, NP>)
+        self.add_systems(PreUpdate, register_message::<T, NP, NS>)
     }
 }
 
-pub(crate) fn register_message<T, NP: NetworkProvider>(
-    net_res: ResMut<Network<NP>>,
+pub(crate) fn register_message<T, NP: NetworkProvider<NS>, NS: NetworkSerializer>(
+    net_res: ResMut<Network<NP, NS>>,
     mut events: EventWriter<NetworkData<T>>,
 ) where
     T: NetworkMessage,
@@ -316,7 +325,7 @@ pub(crate) fn register_message<T, NP: NetworkProvider>(
     };
 
     events.send_batch(messages.drain(..).filter_map(|(source, msg)| {
-        bincode::deserialize::<T>(&msg)
+        NS::deserialize::<T>(&msg)
             .ok()
             .map(|inner| NetworkData { source, inner })
     }));
