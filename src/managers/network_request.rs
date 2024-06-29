@@ -212,8 +212,8 @@ use dashmap::DashMap;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
-    error::NetworkError, serialize::NetworkSerializer, ConnectionId, NetworkData,
-    NetworkMessage, NetworkPacket,
+    error::NetworkError, serialize::NetworkSerializer, ConnectionId, NetworkData, NetworkMessage,
+    NetworkPacket,
 };
 
 use super::{network::register_message, Network, NetworkProvider};
@@ -320,8 +320,8 @@ impl<T: RequestMessage> NetworkMessage for RequestInternal<T> {
     const NAME: &'static str = T::REQUEST_NAME;
 }
 
-/// A wrapper around a request that allows sending a response that will automatically be written
-///  to eventwork for network transmission.
+/// A wrapper around a request that automatically handles writing
+/// the response to eventwork for network transmission.
 #[derive(Debug, Event, Clone)]
 pub struct Request<T: RequestMessage, NS: NetworkSerializer> {
     request: T,
