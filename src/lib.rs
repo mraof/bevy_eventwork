@@ -291,7 +291,7 @@ impl<NS: NetworkSerializer, NP: NetworkProvider<NS> + Default, RT: Runtime> Plug
     for EventworkPlugin<NS, NP, RT>
 {
     fn build(&self, app: &mut App) {
-        app.insert_resource(managers::Network::new(NP::default()));
+        app.insert_resource(Network::new(NP::default()));
         app.add_event::<NetworkEvent>();
         app.add_systems(
             PreUpdate,
